@@ -1,0 +1,9 @@
+{
+  "identifier": "hashrename-default",
+  "description": "Default capability for HashRename",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ]
+}

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HashRename</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <main class="container">
+      <div class="header">
+        <h1>HashRename</h1>
+        <p class="subtitle">File Hash Deduplication &amp; Sequential Renaming</p>
+      </div>
+
+      <!-- Processing view -->
+      <div id="processing-view" class="view hidden">
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="label">Directory</span>
+            <span id="directory-path" class="value">-</span>
+          </div>
+          <div class="info-row">
+            <div class="info-item">
+              <span class="label">Scanned</span>
+              <span id="scanned-count" class="value">0</span>
+            </div>
+            <div class="info-item">
+              <span class="label">Duplicates</span>
+              <span id="duplicate-count" class="value">0</span>
+            </div>
+            <div class="info-item">
+              <span class="label">Keeping</span>
+              <span id="kept-count" class="value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <div class="stage-label">
+            <span id="current-stage">Preparing...</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div class="progress-info">
+            <span id="progress-percent">0%</span>
+            <span id="current-file" class="current-file">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result view -->
+      <div id="result-view" class="view hidden">
+        <div class="result-header">
+          <h2 id="result-title">Processing Complete</h2>
+        </div>
+
+        <div class="result-grid">
+          <div class="result-item">
+            <span class="result-value" id="result-scanned">0</span>
+            <span class="result-label">Scanned Files</span>
+          </div>
+          <div class="result-item">
+            <span class="result-value" id="result-duplicates">0</span>
+            <span class="result-label">Duplicates Found</span>
+          </div>
+          <div class="result-item">
+            <span class="result-value" id="result-trashed">0</span>
+            <span class="result-label">Moved to Trash</span>
+          </div>
+          <div class="result-item">
+            <span class="result-value" id="result-renamed">0</span>
+            <span class="result-label">Files Renamed</span>
+          </div>
+          <div class="result-item">
+            <span class="result-value" id="result-failed">0</span>
+            <span class="result-label">Failed</span>
+          </div>
+          <div class="result-item">
+            <span class="result-value" id="result-time">0s</span>
+            <span class="result-label">Elapsed</span>
+          </div>
+        </div>
+
+        <div id="errors-section" class="errors-section hidden">
+          <h3>Errors</h3>
+          <div id="errors-list" class="errors-list"></div>
+        </div>
+
+        <button id="btn-close" class="btn btn-primary">Close</button>
+      </div>
+
+      <!-- Error view -->
+      <div id="error-view" class="view hidden">
+        <div class="error-box">
+          <h2>Error</h2>
+          <p id="error-message"></p>
+        </div>
+        <button id="btn-close-error" class="btn btn-primary">Close</button>
+      </div>
+    </main>
+  </body>
+</html>
