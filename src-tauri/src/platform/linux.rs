@@ -141,31 +141,22 @@ fn uca_action_xml(exe: &Path) -> String {
 
 /// 尝试在现有 <actions>...</actions> 块中插入新 action,保留原有结构与其它动作。
 fn merge_uca_action(existing: &str, new_action: &str) -> Option<String> {
-    // 查找 </actions> 结束标签(不区分大小写、允许前后空白)
     let end_marker = "</actions>";
-    let lower = existing.to_lowercase();
-    let Some(pos) = lower.rfind(end_marker) else {
-        return None;
-    };
-    // 在原始字符串中对应的位置插入
-    let byte_pos = pos;
-    Some(format!("{}{}{}", &existing[..byte_pos], new_action, &existing[byte_pos..]))
+    let pos = existing.to_lowercase().rfind(end_marker)?;
+    Some(format!(
+        "{}{}{}",
+        &existing[..pos],
+        new_action,
+        &existing[pos..]
+    ))
 }
 
 /// 移除包含特定 unique-id 的 <action>...</action> 块,保留其它内容。
 fn remove_uca_action(existing: &str, unique_id: &str) -> Option<String> {
     let search = format!("<unique-id>{unique_id}</unique-id>");
-    let Some(marker_pos) = existing.find(&search) else {
-        return None;
-    };
-    // 向前找最近的 <action> 开始标签
-    let Some(start) = existing[..marker_pos].rfind("<action>") else {
-        return None;
-    };
-    // 向后找对应的 </action> 结束标签
-    let Some(end_rel) = existing[marker_pos..].find("</action>") else {
-        return None;
-    };
+    let marker_pos = existing.find(&search)?;
+    let start = existing[..marker_pos].rfind("<action>")?;
+    let end_rel = existing[marker_pos..].find("</action>")?;
     let end = marker_pos + end_rel + "</action>".len();
     Some(format!("{}{}", &existing[..start], &existing[end..]))
 }
