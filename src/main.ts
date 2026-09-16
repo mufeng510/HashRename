@@ -1,6 +1,6 @@
 /**
  * HashRename 前端(轻量 UI,需求 §17/§38):
- * - 右键菜单启动时自动开始处理,无确认对话框;
+ * - 右键菜单启动时先预览,确认后再执行;
  * - 显示阶段 / 进度 / 计数 / 当前文件;
  * - 完成后显示结果统计与错误明细;
  * - 可配置项(v0.2.0):哈希算法、预览模式。
@@ -16,7 +16,7 @@ import type {
 
 const app = document.getElementById("app")!;
 
-type Screen = "loading" | "pick" | "running" | "done" | "error";
+type Screen = "loading" | "pick" | "confirm" | "running" | "done" | "error";
 
 let screen: Screen = "loading";
 let currentDir: string | null = null;
@@ -26,6 +26,8 @@ let currentFile = "";
 let counts = { scanned: 0, duplicates: 0, kept: 0 };
 let result: ProcessingResult | null = null;
 let errorMessage = "";
+let pendingDir: string | null = null; // 右键菜单启动时待处理的目录
+let previewResult: ProcessingResult | null = null; // 预览结果缓存
 
 // 可配置选项(v0.2.0):算法与预览模式
 const ALGORITHMS = [
@@ -80,7 +82,7 @@ function render(): void {
         </div>
         <button id="pickBtn" class="primary">选择文件夹并处理</button>
         <p class="hint">也可以在文件管理器中右键文件夹 → “Hash 去重并重命名”<br/>
-        右键菜单启动时按上次选择执行,无确认对话框</p>
+        右键菜单启动时会先预览,确认后再执行</p>
       </div>`;
     document.getElementById("pickBtn")?.addEventListener("click", pickFolder);
     document.getElementById("algoSelect")?.addEventListener("change", (e) => {
@@ -88,6 +90,61 @@ function render(): void {
     });
     document.getElementById("dryRunCheck")?.addEventListener("change", (e) => {
       dryRun = (e.target as HTMLInputElement).checked;
+    });
+    return;
+  }
+
+  if (screen === "confirm" && previewResult) {
+    const r = previewResult;
+    const totalChanges = r.planned_trashes.length + r.planned_renames.length;
+    app.innerHTML = `
+      <div class="center">
+        <div class="logo">Hash<span>Rename</span></div>
+        <div class="dir" title="${esc(r.directory)}">${shortDir(r.directory)}</div>
+        <div class="dir">${esc(selectedAlgorithm.toUpperCase())}</div>
+        <div class="result-title info">预览结果:将进行 ${totalChanges} 项变更</div>
+        <div class="grid">
+          <div class="cell"><div class="num">${r.scanned_count}</div><div class="label">扫描文件</div></div>
+          <div class="cell"><div class="num warn">${r.duplicate_count}</div><div class="label">发现重复</div></div>
+          <div class="cell"><div class="num warn">${r.planned_trashes.length}</div><div class="label">将移入回收站</div></div>
+          <div class="cell"><div class="num">${r.planned_renames.length}</div><div class="label">将重命名</div></div>
+        </div>
+        <div class="elapsed muted">预览耗时:${(r.elapsed_ms / 1000).toFixed(1)} 秒</div>
+        ${
+          r.planned_renames.length || r.planned_trashes.length
+            ? `<div class="problems">
+                <details open><summary>重命名计划(${r.planned_renames.length})</summary>
+                  <div class="preview-list mono">
+                    ${r.planned_renames
+                      .map((p) => `<div>${esc(p.from)} → ${esc(p.to)}</div>`)
+                      .join("")}
+                  </div>
+                </details>
+                ${
+                  r.planned_trashes.length
+                    ? `<details><summary>将移入回收站(${r.planned_trashes.length})</summary>
+                       <div class="preview-list mono">${r.planned_trashes.map((t) => `<div>${esc(t)}</div>`).join("")}</div>
+                       </details>`
+                    : ""
+                }
+               </div>`
+            : `<p class="muted">无需处理:未发现重复文件</p>`
+        }
+        <div class="footer">
+          <button id="confirmBtn" class="primary">确认执行</button>
+          <button id="cancelBtn" class="secondary">取消</button>
+        </div>
+      </div>`;
+    document.getElementById("confirmBtn")?.addEventListener("click", () => {
+      if (pendingDir) {
+        startProcessing(pendingDir, { hashAlgorithm: selectedAlgorithm, dryRun: false });
+      }
+    });
+    document.getElementById("cancelBtn")?.addEventListener("click", () => {
+      pendingDir = null;
+      previewResult = null;
+      screen = "pick";
+      render();
     });
     return;
   }
@@ -232,6 +289,23 @@ async function pickFolder(): Promise<void> {
   }
 }
 
+async function runPreview(dir: string): Promise<ProcessingResult | null> {
+  return new Promise((resolve) => {
+    const onEvent = new Channel<ProgressEvent>();
+    onEvent.onmessage = (event: ProgressEvent) => {
+      if (event.type === "finished") {
+        resolve(event.result);
+      }
+    };
+    invoke("start_processing", {
+      dir,
+      onEvent,
+      hashAlgorithm: selectedAlgorithm,
+      dryRun: true,
+    }).catch(() => resolve(null));
+  });
+}
+
 function startProcessing(dir: string, options: ProcessingOptions): void {
   currentDir = dir;
   screen = "running";
@@ -257,7 +331,6 @@ function startProcessing(dir: string, options: ProcessingOptions): void {
         percent = Math.max(percent, event.percent);
         break;
       case "warning":
-        // 警告在结果页汇总展示
         break;
       case "finished":
         result = event.result;
@@ -285,8 +358,18 @@ async function boot(): Promise<void> {
   try {
     const info = await invoke<LaunchInfo>("get_launch_info");
     if (info.dir) {
-      // 右键菜单/命令行启动:直接开始,无确认(需求 §16),按当前选项执行
-      startProcessing(info.dir, { hashAlgorithm: selectedAlgorithm, dryRun });
+      // 右键菜单/命令行启动:先预览,确认后再执行
+      pendingDir = info.dir;
+      const preview = await runPreview(info.dir);
+      if (preview) {
+        previewResult = preview;
+        screen = "confirm";
+        render();
+      } else {
+        errorMessage = "预览失败,请重试";
+        screen = "error";
+        render();
+      }
     } else {
       screen = "pick";
       render();
