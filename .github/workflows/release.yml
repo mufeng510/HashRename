@@ -25,6 +25,9 @@ jobs:
             target: universal-apple-darwin
             args: --target universal-apple-darwin --bundles app,dmg
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: 安装 Tauri 系统依赖(Linux)
