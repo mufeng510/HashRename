@@ -50,14 +50,15 @@ jobs:
       - name: Determine release type
         id: release_type
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+          if [[ "${{ github.event.ref_type }}" == "tag" ]]; then
             echo "prerelease=false" >> $GITHUB_OUTPUT
             echo "draft=false" >> $GITHUB_OUTPUT
             echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
             echo "prerelease=true" >> $GITHUB_OUTPUT
             echo "draft=false" >> $GITHUB_OUTPUT
-            echo "tag_name=pre-${{ github.sha::7 }}" >> $GITHUB_OUTPUT
+            SHORT_SHA="${{ github.sha }}"
+            echo "tag_name=pre-${SHORT_SHA:0:7}" >> $GITHUB_OUTPUT
           fi
       - name: 构建并上传到 Release
         uses: tauri-apps/tauri-action@v0
