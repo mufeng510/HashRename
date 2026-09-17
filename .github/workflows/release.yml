@@ -2,7 +2,8 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]      # pre-release on every push to main
+    tags: ["v*"]          # official release on version tags
   workflow_dispatch:
 
 permissions:
@@ -46,13 +47,25 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Determine release type
+        id: release_type
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "draft=false" >> $GITHUB_OUTPUT
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "draft=false" >> $GITHUB_OUTPUT
+            echo "tag_name=pre-${{ github.sha::7 }}" >> $GITHUB_OUTPUT
+          fi
       - name: 构建并上传到 Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "HashRename ${{ github.ref_name }}"
+          tagName: ${{ steps.release_type.outputs.tag_name }}
+          releaseName: "HashRename ${{ steps.release_type.outputs.tag_name }}"
           releaseBody: |
             跨平台文件哈希去重与序号重命名工具。
 
@@ -61,6 +74,6 @@ jobs:
             - Linux:HashRename.AppImage 与 .deb
 
             右键菜单安装:运行 `hashrename --install-context-menu`
-          releaseDraft: false
-          prerelease: false
+          releaseDraft: ${{ steps.release_type.outputs.draft }}
+          prerelease: ${{ steps.release_type.outputs.prerelease }}
           args: ${{ matrix.args }}
